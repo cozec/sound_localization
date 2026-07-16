@@ -23,6 +23,35 @@ agree at the +40° test case. Details in [summary.md](summary.md).
    mic spacing and `c` the speed of sound. Range ±90° from broadside
    (a 2-mic array cannot resolve front/back).
 
+## GCC-PHAT in brief
+
+**GCC-PHAT = Generalized Cross-Correlation with PHAse Transform** (Knapp &
+Carter, 1976). A time delay between two signals lives in the *phase* of their
+cross-power spectrum: `R(f) = X₀(f)·X₁*(f) = |S(f)|²·e^(−j2πfτ)`. GCC-PHAT
+
+1. computes `R(f)` via FFT,
+2. **whitens it** — `R/|R|` — discarding magnitude so every frequency votes
+   equally and only the phase slope `e^(−j2πfτ)` remains,
+3. inverse-FFTs back: a pure phase slope transforms to a sharp peak at lag τ.
+
+The whitening step is what makes it robust to reverberation (reflections
+corrupt magnitude more than the direct path's phase slope) and is the entire
+difference from plain cross-correlation. Our implementation
+([src/gcc_phat.py](src/gcc_phat.py)) adds 16× band-limited interpolation of
+the correlation for sub-sample delay resolution (3.9 µs ≈ 0.5° near
+broadside) and restricts the peak search to physically possible lags
+±d/c = ±437 µs.
+
+### Experiment
+
+Single-source test at +40° (anechoic, white noise): the measured correlation
+peak lands at τ = 281.2 µs vs 281.1 µs geometric truth, giving
+θ = arcsin(c·τ/d) = +40.03°. The walkthrough figure below shows the raw mic
+signals (mic 1 leads by 281 µs), the whitened correlation with its single
+sharp peak, and the angle conversion. The full ±80° sweep (17 angles × 2
+scenarios, `src/run_sim.py`) yields mean error 0.20° anechoic / 0.57°
+reverberant.
+
 ## Setup
 
 ```bash
