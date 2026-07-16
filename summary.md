@@ -63,6 +63,30 @@ spectra (vertical ridge at +40°; curved spatial-aliasing ghosts above
 All three DOA methods (GCC-PHAT, delay-and-sum, MVDR) independently agree
 at the +40° test case.
 
+## Multichannel Wiener filter (2026-07-16)
+
+`src/wiener.py`: per-bin MWF `W = (Rx + δI)⁻¹(Rx − Rn)e_ref` (STFT 256,
+1% diagonal loading), noise covariance from a 0.8 s target-silent lead-in.
+Experiment (`src/run_wiener.py`, seed 42): target bursts at +40°, white
+interferer at −30°, RT60 = 0.3 s room, sensor noise, 0 dB input SNR.
+
+| Metric | Value |
+|---|---|
+| Input SNR (mic 0, active period) | 0.0 dB |
+| Output SNR (MWF) | 5.1 dB |
+| Improvement | **+5.1 dB** |
+
+SNR measured by filtering the target and noise components separately with
+the same weights. Figure: `plots/mwf_demo.png` — noise floor between bursts
+visibly suppressed; some target attenuation is visible in the waveform,
+the usual MWF noise-reduction vs target-distortion tradeoff with only two
+channels. Two mics give one spatial degree of freedom, so the interferer
+is attenuated, not nulled.
+
+Signal-flow block diagram: `plots/mwf_diagram.png` (via
+`src/plot_mwf_diagram.py`) — signal path (STFT → per-bin WᴴX → ISTFT) and
+statistics path (Rn from the lead-in, Rx from all frames → W).
+
 ## Hardware verification (MacBook Pro 14, M5)
 
 - Python capture via `sounddevice` works (48 kHz, verified live recording).
