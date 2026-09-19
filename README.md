@@ -151,10 +151,42 @@ The MWF improves SNR by **+5.1 dB** with two mics.
 
 See [summary.md](summary.md) for current results.
 
+## Beamforming experiments (PySDR walkthrough)
+
+What to do *after* the DOA is known: conventional vs MVDR vs LCMV weights,
+nulling interferers, extracting several sources at once, and polar
+beampatterns of the 2-mic array. Scripts `src/pysdr_*.py` follow the
+[PySDR DOA chapter](https://pysdr.org/content/doa.html); write-up with all
+plots in [beamforming_experiments.md](beamforming_experiments.md).
+
+## Polar beampatterns (delay-and-sum vs MVDR)
+
+`src/plot_polar.py` draws the array's directional response in the classic
+polar form — the plot you see in mic-array tutorials — for the 2-mic,
+15 cm geometry steered to +40°.
+
+- **Left, delay-and-sum** at 500 Hz–4 kHz: the beam narrows with frequency,
+  grating lobes appear above the spatial-aliasing limit `c / (2d) ≈ 1143 Hz`,
+  and every pattern is mirror-symmetric about the mic axis (±90°) — the
+  front/back ambiguity of any linear array.
+- **Right, MVDR** steered to +40° with an interferer at −30°: the weights
+  `w = Rₙ⁻¹a / (aᴴRₙ⁻¹a)` keep unit gain at the look direction and place a
+  null on the interferer. With two mics there is exactly one null to spend;
+  the DOA estimate is what tells you where to spend it. At frequencies where
+  the two directions alias onto the same steering vector (e.g. 2 kHz for this
+  pair of angles) no null is possible — another reason to keep `d < λ/2`.
+
+```bash
+.venv/bin/python src/plot_polar.py   # -> plots/polar_patterns.png
+```
+
+![Polar beampatterns](plots/polar_patterns.png)
+
 ## Layout
 
 - `src/` — DOA methods (`gcc_phat.py`, `beamformer.py`, `mvdr.py`),
-  simulation harness (`run_sim.py`), plot scripts (`plot_*.py`)
+  enhancement (`wiener.py`), simulation harness (`run_sim.py`), plot
+  scripts (`plot_*.py`, incl. `plot_polar.py` beampatterns)
 - `plots/` — generated figures (checked in, embedded above)
 - `results/`, `data/`, `logs/` — generated artifacts (not checked in)
 

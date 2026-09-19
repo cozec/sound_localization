@@ -87,6 +87,22 @@ Signal-flow block diagram: `plots/mwf_diagram.png` (via
 `src/plot_mwf_diagram.py`) — signal path (STFT → per-bin WᴴX → ISTFT) and
 statistics path (Rn from the lead-in, Rx from all frames → W).
 
+## Polar beampatterns (2026-09-18)
+
+`plots/polar_patterns.png` (via `src/plot_polar.py`): closed-form
+delay-and-sum patterns at 500/1000/2000/4000 Hz and MVDR patterns at 800 and
+1500 Hz, all steered to +40°, 2-mic / 15 cm geometry.
+
+- Spatial-aliasing limit for d = 15 cm is 1143 Hz; 2 kHz and 4 kHz show
+  grating lobes as expected.
+- MVDR (Rₙ from a simulated anechoic interferer at −30°) puts a >30 dB null
+  at −30° while holding 0 dB at +40°; delay-and-sum at the same frequencies
+  is only ~3–6 dB down there.
+- Frequencies 1 kHz and 2 kHz were skipped for the MVDR panel: at 1 kHz
+  delay-and-sum already nulls −30° by coincidence, and at 2 kHz the +40°/−30°
+  steering vectors are identical (aliased), so MVDR cannot separate them
+  (measured: no null, off-look gain up to +9 dB).
+
 ## Hardware verification (MacBook Pro 14, M5)
 
 - Python capture via `sounddevice` works (48 kHz, verified live recording).
