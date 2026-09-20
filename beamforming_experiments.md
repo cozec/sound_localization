@@ -385,6 +385,66 @@ UCA r = 0.425 λ (adjacent spacing 0.5 λ), sources at 30°, 150°
 MVDR / MUSIC / LCMV change only the *weighting* of the arrows before the
 sum; where each arrow points is fixed by geometry.
 
+## 10. Diagonal loading and self-nulling
+
+`src/pysdr_diagonal_loading.py` — 8-element ULA, target at 20° (0 dB),
+interferer at −40° (+10 dB), MVDR steered to **22°** (2° DOA error).
+
+```python
+def w_mvdr_loaded(theta, R, delta_frac):
+    s = steer(theta)
+    Rl = R + delta_frac * (np.trace(R).real / Nr) * np.eye(Nr)   # R + δI, δ as a fraction of mean channel power
+    Rinv = np.linalg.inv(Rl)
+    return (Rinv @ s) / (s.conj().T @ Rinv @ s)
+```
+
+$$\mathbf{w}_{\delta} = \frac{(\mathbf{R} + \delta\mathbf{I})^{-1}\mathbf{s}}{\mathbf{s}^H (\mathbf{R} + \delta\mathbf{I})^{-1} \mathbf{s}} = \arg\min_{\mathbf{w}} \; \mathbf{w}^H\mathbf{R}\mathbf{w} + \delta\|\mathbf{w}\|^2 \;\; \text{s.t.} \;\; \mathbf{w}^H\mathbf{s} = 1, \qquad (\mathbf{R}+\delta\mathbf{I})^{-1} = \sum_{i} \frac{\mathbf{u}_{i}\mathbf{u}_{i}^H}{\lambda_{i} + \delta}$$
+
+**Self-nulling.** MVDR minimizes output power subject to unit gain at the
+*assumed* steering vector. If the true target wavefront differs (DOA
+error, mic mismatch, reverberation, near field), the target is strong
+power that is *not* at `s(θ̂)` — indistinguishable from an interferer — so
+MVDR nulls it. The constraint still holds at 22°, but nothing arrives from
+there. The louder the target, the deeper the null.
+
+**Why loading helps.** `δ` leaves large eigenvalues (strong interferers)
+almost untouched, `1/(λ+δ) ≈ 1/λ`, but caps the small ones at `1/δ`, so
+power below ~δ is treated as noise rather than nulled. Equivalently it is a
+penalty on `‖w‖²`: deep, precisely placed nulls need large weights, and
+loading forbids them. `δ → 0` is MVDR, `δ → ∞` is delay-and-sum `s/Nr`.
+
+![Diagonal loading](plots/pysdr_diagonal_loading.png)
+
+```
+input SNR at element 0:        −10.1 dB
+delay-and-sum steered to 22°:    8.1 dB
+                        MVDR δ→0     best (δ)
+steer error  0°          16.4        16.5 (0.16)
+steer error +1°           4.0        12.7 (3.2)
+steer error +2°           1.2         8.4 (1.0)
+steer error +4°           0.2         3.5 (0.8)
+```
+
+- Top-left: no error → MVDR beats delay-and-sum by 8 dB and δ hardly
+  matters. 2° error at δ→0 costs 15 dB (worse than the raw input); loading
+  recovers delay-and-sum level. 1° error with δ≈1 keeps a 4.6 dB edge.
+- Top-right: at δ=1e-4 the pattern has a −33 dB notch at 20° right beside
+  the 0 dB constraint at 22° — the null on the true target. δ=0.1 fills it
+  to −5 dB while the −40° interferer stays at −40 dB.
+- Bottom-left: white-noise gain `1/‖w‖²` rises from −1 dB (weights 10×
+  larger than needed) to the 9 dB delay-and-sum limit as δ grows.
+- Bottom-right: with δ=0 a *louder* target gives a *worse* output. A fixed
+  δ also degrades as the target grows (it becomes small relative to
+  `trace(R)`), which is why robust variants scale δ with signal power or
+  constrain white-noise gain directly (Cox), or bound the steering-vector
+  uncertainty set (Vorobyov–Gershman–Luo).
+
+Other fixes for the same problem: estimate `R` from target-free segments
+only (the `Rn` lead-in in `src/wiener.py` — if the target isn't in `R`,
+MVDR can't null it), or replace the free-field `s(θ)` with a measured
+relative transfer function so the constraint matches the real wavefront.
+`src/mvdr.py` uses `loading = 1e-2`, the low end of the useful range.
+
 ## Takeaways for the microphone array
 
 1. The DOA estimate is only half the job; the same `R⁻¹` that produced the
@@ -405,6 +465,10 @@ sum; where each arrow points is fixed by geometry.
 7. For DOA alone, MUSIC gives the sharpest peaks but needs `K` and
    uncorrelated sources; MVDR's scan is a safer default in rooms, and its
    `R⁻¹` is reused for enhancement.
-8. Geometry enters only through `steer()`. A ring (UCA) removes the
+8. MVDR's precision is also its failure mode: any mismatch between the
+   assumed and true steering vector turns the target into an interferer
+   (self-nulling). Always diagonal-load, and prefer a target-free `Rn`
+   when you can get one.
+9. Geometry enters only through `steer()`. A ring (UCA) removes the
    front/back ambiguity a 2-mic or linear array has; nothing else in the
    pipeline changes.
