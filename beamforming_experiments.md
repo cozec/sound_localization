@@ -317,6 +317,47 @@ MVDR (DOA=20°)   1.000 ( 0.0 dB)   −53.3 dB      −42.9 dB          12.0 dB
   GSC and of echo cancellation — no pilot for speech, but a known reference
   for loudspeaker playback or motor/ego-noise on a robot.
 
+## 9. Circular arrays (UCA)
+
+`src/pysdr_uca.py` — the "Circular Arrays" section. The page gives only the
+UCA steering vector and says everything else carries over, scanned 0–360°.
+5-element UCA (KrakenSDR layout), sources at 30° and 150°, next to a
+5-element ULA on the same scene.
+
+```python
+x = radius * np.cos(2*np.pi/Nr * np.arange(Nr))      # element positions in wavelengths
+y = -radius * np.sin(2*np.pi/Nr * np.arange(Nr))     # (the page's d*sf product equals radius)
+
+def steer_uca(theta):                                # theta from +x, counter-clockwise
+    return np.exp(1j*2*np.pi*(x*np.cos(theta) + y*np.sin(theta))).reshape(-1, 1)
+
+theta_scan = np.linspace(0, 2*np.pi, 1441)           # full circle, not -90..90
+```
+
+$$\mathbf{s}_{k}(\theta) = \exp\big(j 2\pi\,(x_{k}\cos\theta + y_{k}\sin\theta)\big), \qquad x_{k} = r\cos\tfrac{2\pi k}{N_{r}}, \quad y_{k} = -r\sin\tfrac{2\pi k}{N_{r}}$$
+
+The steering vector is just the plane-wave phase at each element position
+— the ULA's `k·d·sinθ` is the special case of elements on a line. Every
+scan/beamformer above works unchanged; only `steer()` and the scan range
+differ.
+
+![UCA](plots/pysdr_uca.png)
+
+```
+UCA r = 0.425 λ (adjacent spacing 0.5 λ), sources at 30°, 150°
+  UCA  MVDR / MUSIC peaks:  [30.0, 150.0]                 (conventional adds a spurious lobe at 226°)
+  ULA  MVDR / MUSIC peaks:  [30.0, 150.0, 210.0, 330.0]   (mirror images about the array axis)
+```
+
+- The UCA resolves the full circle with no ambiguity; the ULA reports each
+  source twice (`θ` and `−θ`) because a line array only measures `cosθ`.
+- Radius sweep (bottom-right): the page's `r = 0.05 λ` is almost a point —
+  the conventional beam is nearly omnidirectional. `r ≈ 0.4 λ` gives a
+  usable beam; `r = 1 λ` is sharper but grows grating-like lobes.
+- Acoustic: this is the ReSpeaker / Echo ring layout. Same trade-off as §1:
+  ring radius sets the aliasing frequency; per-bin steering handles the
+  broadband part.
+
 ## Takeaways for the microphone array
 
 1. The DOA estimate is only half the job; the same `R⁻¹` that produced the
@@ -337,3 +378,6 @@ MVDR (DOA=20°)   1.000 ( 0.0 dB)   −53.3 dB      −42.9 dB          12.0 dB
 7. For DOA alone, MUSIC gives the sharpest peaks but needs `K` and
    uncorrelated sources; MVDR's scan is a safer default in rooms, and its
    `R⁻¹` is reused for enhancement.
+8. Geometry enters only through `steer()`. A ring (UCA) removes the
+   front/back ambiguity a 2-mic or linear array has; nothing else in the
+   pipeline changes.
