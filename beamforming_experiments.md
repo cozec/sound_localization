@@ -358,6 +358,33 @@ UCA r = 0.425 λ (adjacent spacing 0.5 λ), sources at 30°, 150°
   ring radius sets the aliasing frequency; per-bin steering handles the
   broadband part.
 
+### How UCA conventional beamsteering works
+
+`src/plot_uca_explain.py` — the mechanism, step by step.
+
+![UCA explained](plots/uca_explain.png)
+
+1. **Geometry → phase.** A wave from θ hits element `k` earlier than the
+   array center by the projection of its position onto the propagation
+   direction, `x_k cosθ + y_k sinθ` wavelengths (dashed lines, panel 1).
+   Phase lead `φ_k = 2π·(that)`. On the ring this is
+   `2πr·cos(θ + 2πk/Nr)` — a cosine of θ, shifted per element (panel 2).
+   A ULA's phases are `2πkd·sinθ`: one curve scaled by `k`, which is why a
+   ULA can't tell `θ` from `−θ`; the ring's five distinct shifts can.
+2. **Weights = conjugate of the look-direction phases.** Output
+   `wᴴx = (1/Nr) Σ_k exp(j[φ_k(θ) − φ_k(θ_look)])·x`. Each term is a unit
+   phasor (panel 3). From the look direction every exponent is zero, the
+   five arrows line up, gain = 1. From 100° the residual phases (the
+   vertical gaps between the two dotted lines in panel 2) fan the arrows
+   out; |sum|/Nr = 0.29 = −10.9 dB.
+3. **Sweep θ → beam pattern** (panel 4). The −10.9 dB at 100° is the same
+   number as panel 3b. The side lobes are angles where the arrows
+   re-align partially. Because the phases are not linear in `k`, the
+   pattern is evaluated directly rather than by FFT as for a ULA.
+
+MVDR / MUSIC / LCMV change only the *weighting* of the arrows before the
+sum; where each arrow points is fixed by geometry.
+
 ## Takeaways for the microphone array
 
 1. The DOA estimate is only half the job; the same `R⁻¹` that produced the
