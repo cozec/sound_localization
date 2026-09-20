@@ -445,6 +445,77 @@ MVDR can't null it), or replace the free-field `s(θ)` with a measured
 relative transfer function so the constraint matches the real wavefront.
 `src/mvdr.py` uses `loading = 1e-2`, the low end of the useful range.
 
+## 11. Patent US 2018/0176679 A1 — pre-selected beam width (Verizon, 2016)
+
+*"Beamforming Optimization for Receiving Audio Signals"*, Lu, Kalluri,
+Walters, Bojan, Wang, Vuppuluri. A robust-MVDR variant aimed at exactly the
+§10 problem: MVDR self-nulls under DOA error, diagonal loading blunts it but
+gives no way to set a standard beam width, and the width drifts with
+frequency and time. Demo: `src/patent_beamwidth_lcmv.py`.
+
+**Pipeline (Fig. 3, Fig. 7):** analysis filter bank (DFT, e.g. 16 kHz / 80
+bands) → DOA → build the optimization object → solve for `W(f,n)` → apply →
+synthesis filter bank. DOA itself is not the invention; ¶12–13 describe an
+iterative steered scan (guess a DOA, delay-and-sum, check SNR, repeat until
+a threshold or iteration budget — i.e. SRP), ¶39 a "DOA analysis module"
+per frequency range, and ¶40 an option to skip DOA entirely: split 360°
+into 9 sectors of 40°, beamform each, keep the most voice-like / loudest.
+
+**The optimization object (¶28–31).** A steering *matrix* with boundary
+vectors at equal angular distance either side of the steering direction,
+constrained to a gain vector `Δ`, plus a loading term that scales with
+frequency and input power:
+
+```python
+def w_patent(R, f, doa, width, c_slope, f_ref):
+    A = np.hstack([steer(doa - width/2, f), steer(doa, f), steer(doa + width/2, f)])   # boundary vectors
+    Delta = np.ones((3, 1))                                # unit gain across the whole beam width
+    eps = c_slope * (f / f_ref)**2 * np.trace(R).real / M  # ε(f,n) = c(slope) · b(f) · E(n)
+    R1inv = np.linalg.inv(R + eps * np.eye(M))
+    return R1inv @ A @ np.linalg.inv(A.conj().T @ R1inv @ A) @ Delta
+```
+
+$$J = \mathbf{W}^H\mathbf{R}\mathbf{W} + \varepsilon(f,n)\,\mathbf{W}^H\mathbf{W} - 2\boldsymbol{\lambda}^H(\mathbf{A}^H\mathbf{W} - \boldsymbol{\Delta}), \qquad \mathbf{W} = \mathbf{R}_{1}^{-1}\mathbf{A}\,(\mathbf{A}^H\mathbf{R}_{1}^{-1}\mathbf{A})^{-1}\boldsymbol{\Delta}, \quad \mathbf{R}_{1} = \mathbf{R} + \varepsilon\mathbf{I}, \quad \varepsilon = c(\text{slope})\, b(f)\, E(n)$$
+
+It is LCMV (§6) with `C = A`, `f = Δ`, and diagonal loading (§10) whose δ
+tracks frequency (`b(f)`, e.g. `f²`) and mic input power (`E(n)`) instead
+of being a constant. The boundary vectors hold unit gain across the whole
+pre-selected width, so a target inside it cannot be self-nulled; `b(f)` and
+`E(n)` are what make the behaviour "independent of frequency and time"
+(claims 7, 14, 20). Preferred array: 3 mics on a circle + 1 at the centre.
+
+![Patent demo](plots/patent_beamwidth_lcmv.png)
+
+16 mics, 4 cm spacing, target 20°, DOA estimate 22°, interferer −40° at
++10 dB, per-bin narrowband snapshots 500 Hz–4 kHz:
+
+```
+f = 2 kHz                        gain@20°   gain@−40°   out SNR   ripple over ±2.5°
+MVDR δ=0                         −14.3 dB   −54.7 dB     0.7 dB      37.1 dB
+MVDR δ=0.1 (const)                −4.2 dB   −46.8 dB     5.7 dB       5.7 dB
+patent ±2.5° boundary + ε(f)      −0.0 dB   −50.1 dB    11.0 dB       0.0 dB
+```
+
+- Top-right: output SNR is flat at 11 dB for any DOA error inside ±2.5°
+  (and degrades gently outside), where MVDR is a 1°-wide spike.
+- Bottom row: gain ripple across the beam width is 0 dB at every
+  frequency, and output SNR with 2° error is flat 1–4 kHz, versus MVDR's
+  collapse as frequency (resolution) rises. That is the "standardized"
+  behaviour the claims describe.
+- Price: sidelobes next to the beam bulge to +4 dB (top-left, green) —
+  three equal-gain constraints 2.5° apart flatten the curvature at the
+  look direction, so the true maximum moves outside. The patent's Γ
+  row/column offset (¶31) is presumably for this; the text is not specific.
+- The patent's "5° beam width" example is unphysical for this array:
+  forcing a −3 dB edge 2.5° off-look demands a beam 5–15× narrower than
+  the aperture allows and drives the weights superdirective (+20 dB
+  sidelobes, tested). The flat-top `Δ = [1,1,1]` reading is what works.
+
+Relation to the repo: `wiener.py`/`mvdr.py` already have STFT → per-bin
+`R` → `(R+δI)⁻¹` → ISTFT; the patent adds a 3-column constraint and a
+frequency/power-scaled δ. With 2 mics the constraint matrix has more
+columns than the array has degrees of freedom, so it needs ≥4 mics.
+
 ## Takeaways for the microphone array
 
 1. The DOA estimate is only half the job; the same `R⁻¹` that produced the
