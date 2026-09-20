@@ -65,13 +65,7 @@ w = steer(theta_look) / Nr                # enhancement: weights for one directi
 y = w.conj().T @ X                        # 1 x N beamformer output
 ```
 
-$$
-\mathbf{s}(\theta) = \big[1,\; e^{j2\pi d \sin\theta},\; \dots,\; e^{j2\pi (N_r-1) d \sin\theta}\big]^T,
-\qquad
-\mathbf{w}_{\text{conv}} = \frac{\mathbf{s}(\theta)}{N_r},
-\qquad
-P_{\text{conv}}(\theta) = \mathbf{s}^H(\theta)\,\mathbf{R}\,\mathbf{s}(\theta)
-$$
+$$\mathbf{s}(\theta) = \big[1,\; e^{j2\pi d \sin\theta},\; \dots,\; e^{j2\pi (N_{r}-1) d \sin\theta}\big]^T, \qquad \mathbf{w}_{\text{conv}} = \frac{\mathbf{s}(\theta)}{N_{r}}, \qquad P_{\text{conv}}(\theta) = \mathbf{s}^H(\theta) \mathbf{R} \mathbf{s}(\theta)$$
 
 `wᴴ = sᴴ/Nr` conjugates each element's phase lag so the look direction adds
 in phase; everything else partially cancels. The scan is that same
@@ -111,14 +105,7 @@ def power_mvdr(theta, X):                 # DOA scan, closed form = var(w_mvdr�
     return 1 / (s.conj().T @ Rinv @ s).squeeze()
 ```
 
-$$
-\mathbf{w}_{\text{MVDR}} = \arg\min_{\mathbf{w}} \mathbf{w}^H \mathbf{R}\, \mathbf{w}
-\;\;\text{s.t.}\;\; \mathbf{w}^H \mathbf{s}(\theta) = 1
-\;\;\Rightarrow\;\;
-\mathbf{w}_{\text{MVDR}} = \frac{\mathbf{R}^{-1}\mathbf{s}}{\mathbf{s}^H \mathbf{R}^{-1} \mathbf{s}},
-\qquad
-P_{\text{MVDR}}(\theta) = \frac{1}{\mathbf{s}^H \mathbf{R}^{-1} \mathbf{s}}
-$$
+$$\mathbf{w}_{\text{MVDR}} = \arg\min_{\mathbf{w}} \mathbf{w}^H \mathbf{R}  \mathbf{w} \;\;\text{s.t.}\;\; \mathbf{w}^H \mathbf{s}(\theta) = 1 \;\;\Rightarrow\;\; \mathbf{w}_{\text{MVDR}} = \frac{\mathbf{R}^{-1}\mathbf{s}}{\mathbf{s}^H \mathbf{R}^{-1} \mathbf{s}}, \qquad P_{\text{MVDR}}(\theta) = \frac{1}{\mathbf{s}^H \mathbf{R}^{-1} \mathbf{s}}$$
 
 Minimize output power `wᴴRw` subject to `wᴴs = 1`. `R⁻¹` de-emphasizes
 whatever is strong in the data that isn't at θ, so interferers get nulled
@@ -194,17 +181,7 @@ W_zf   = C @ np.linalg.inv(C.conj().T @ C)                       # pinv(C)ᴴ
 Y = W.conj().T @ X                                               # K x N, one row per source
 ```
 
-$$
-\mathbf{C} = [\mathbf{s}_1 \cdots \mathbf{s}_K],
-\qquad
-\mathbf{W}_{\text{bank}} = \Big[\tfrac{\mathbf{R}^{-1}\mathbf{s}_k}{\mathbf{s}_k^H \mathbf{R}^{-1} \mathbf{s}_k}\Big]_{k=1..K},
-\qquad
-\mathbf{W}_{\text{LCMV}} = \mathbf{R}^{-1}\mathbf{C}\,(\mathbf{C}^H \mathbf{R}^{-1} \mathbf{C})^{-1},
-\qquad
-\mathbf{W}_{\text{ZF}} = \mathbf{C}\,(\mathbf{C}^H \mathbf{C})^{-1},
-\qquad
-\mathbf{Y} = \mathbf{W}^H \mathbf{X}
-$$
+$$\mathbf{C} = [\mathbf{s}_{1} \cdots \mathbf{s}_{K}], \qquad \mathbf{W}_{\text{bank}} = \Big[\tfrac{\mathbf{R}^{-1}\mathbf{s}_{k}}{\mathbf{s}_{k}^H \mathbf{R}^{-1} \mathbf{s}_{k}}\Big]_{k=1..K}, \qquad \mathbf{W}_{\text{LCMV}} = \mathbf{R}^{-1}\mathbf{C} (\mathbf{C}^H \mathbf{R}^{-1} \mathbf{C})^{-1}, \qquad \mathbf{W}_{\text{ZF}} = \mathbf{C} (\mathbf{C}^H \mathbf{C})^{-1}, \qquad \mathbf{Y} = \mathbf{W}^H \mathbf{X}$$
 
 ![Extract three](plots/pysdr_extract_three.png)
 
@@ -230,12 +207,7 @@ f = np.array([1]*n_pass + [0]*n_null).reshape(-1, 1)                  # desired 
 w = Rinv @ C @ np.linalg.pinv(C.conj().T @ Rinv @ C) @ f              # Nr x 1
 ```
 
-$$
-\mathbf{w}_{\text{LCMV}} = \arg\min_{\mathbf{w}} \mathbf{w}^H \mathbf{R}\, \mathbf{w}
-\;\;\text{s.t.}\;\; \mathbf{C}^H \mathbf{w} = \mathbf{f}
-\;\;\Rightarrow\;\;
-\mathbf{w}_{\text{LCMV}} = \mathbf{R}^{-1}\mathbf{C}\,(\mathbf{C}^H \mathbf{R}^{-1} \mathbf{C})^{-1}\mathbf{f}
-$$
+$$\mathbf{w}_{\text{LCMV}} = \arg\min_{\mathbf{w}} \mathbf{w}^H \mathbf{R}  \mathbf{w} \;\;\text{s.t.}\;\; \mathbf{C}^H \mathbf{w} = \mathbf{f} \;\;\Rightarrow\;\; \mathbf{w}_{\text{LCMV}} = \mathbf{R}^{-1}\mathbf{C} (\mathbf{C}^H \mathbf{R}^{-1} \mathbf{C})^{-1}\mathbf{f}$$
 
 Minimize `wᴴRw` subject to `Cᴴw = f`: K linear constraints (unit gain here,
 zero there) enforced exactly, and the remaining `Nr−K` degrees of freedom
@@ -276,13 +248,7 @@ roots = roots[np.argsort(-np.abs(roots))][:K]
 doas = np.arcsin(np.angle(roots) / (2*np.pi*d))
 ```
 
-$$
-\mathbf{R} = \mathbf{U}\boldsymbol{\Lambda}\mathbf{U}^H
-= \underbrace{\mathbf{U}_s \boldsymbol{\Lambda}_s \mathbf{U}_s^H}_{K \text{ signal}}
-+ \underbrace{\mathbf{V}\, \sigma^2 \mathbf{V}^H}_{N_r - K \text{ noise}},
-\qquad
-P_{\text{MUSIC}}(\theta) = \frac{1}{\mathbf{s}^H(\theta)\,\mathbf{V}\mathbf{V}^H\,\mathbf{s}(\theta)}
-$$
+$$\mathbf{R} = \mathbf{U}\boldsymbol{\Lambda}\mathbf{U}^H = \underbrace{\mathbf{U}_{s} \boldsymbol{\Lambda}_{s} \mathbf{U}_{s}^H}_{K \text{ signal}} + \underbrace{\mathbf{V}  \sigma^2 \mathbf{V}^H}_{N_{r} - K \text{ noise}}, \qquad P_{\text{MUSIC}}(\theta) = \frac{1}{\mathbf{s}^H(\theta) \mathbf{V}\mathbf{V}^H \mathbf{s}(\theta)}$$
 
 `R` has `K` large eigenvalues (signal subspace) and `Nr−K` small ones equal
 to the noise power. A true steering vector lies in the signal subspace, so
@@ -325,12 +291,7 @@ for i in range(N):
     w += mu * np.conj(e) * r_i            # stochastic gradient step
 ```
 
-$$
-\mathbf{w}_{n+1} = \mathbf{w}_n + \mu\, \underbrace{\big(y_n - \mathbf{w}_n^H \mathbf{x}_n\big)^{*}}_{\text{error}}\, \mathbf{x}_n
-\;\;\xrightarrow{\;n\to\infty\;}\;\;
-\mathbf{w}_{\text{Wiener}} = \mathbf{R}^{-1}\mathbf{p},
-\quad \mathbf{p} = E[\mathbf{x}\, y^{*}]
-$$
+$$\mathbf{w}_{n+1} = \mathbf{w}_{n} + \mu  \underbrace{\big(y_{n} - \mathbf{w}_{n}^H \mathbf{x}_{n}\big)^{*}}_{\text{error}}  \mathbf{x}_{n} \;\;\xrightarrow{\;n\to\infty\;}\;\; \mathbf{w}_{\text{Wiener}} = \mathbf{R}^{-1}\mathbf{p}, \quad \mathbf{p} = E[\mathbf{x}  y^{*}]$$
 
 Stochastic gradient descent on `E|soi − wᴴr|²`. No covariance, no matrix
 inverse, O(Nr) per sample; converges to the Wiener solution `R⁻¹p` with
