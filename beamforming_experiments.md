@@ -496,13 +496,15 @@ MVDR δ=0.1 (const)                −4.2 dB   −46.8 dB     5.7 dB       5.7 d
 patent ±2.5° boundary + ε(f)      −0.0 dB   −50.1 dB    11.0 dB       0.0 dB
 ```
 
-- Top-right: output SNR is flat at 11 dB for any DOA error inside ±2.5°
-  (and degrades gently outside), where MVDR is a 1°-wide spike.
-- Bottom row: gain ripple across the beam width is 0 dB at every
-  frequency, and output SNR with 2° error is flat 1–4 kHz, versus MVDR's
-  collapse as frequency (resolution) rises. That is the "standardized"
-  behaviour the claims describe.
-- Price: sidelobes next to the beam bulge to +4 dB (top-left, green) —
+- (a) The three open circles are the constraints `Cᴴw = [1,1,1]` at
+  19.5°, 22°, 24.5°. The true target at 20° sits inside; MVDR's −14 dB
+  self-null lands there, the patent's pattern is pinned at 0 dB.
+- (c) Output SNR is flat at 11 dB for any DOA error inside ±2.5° (and
+  degrades gently outside), where MVDR is a 1°-wide spike.
+- (d) With the same 2° error the patent's SNR is flat 1–4 kHz, versus
+  MVDR's collapse as frequency (resolution) rises — the "standardized
+  regardless of frequency" behaviour the claims describe.
+- (b) Price: sidelobes next to the flat top bulge to +4 dB —
   three equal-gain constraints 2.5° apart flatten the curvature at the
   look direction, so the true maximum moves outside. The patent's Γ
   row/column offset (¶31) is presumably for this; the text is not specific.

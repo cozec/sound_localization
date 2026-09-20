@@ -138,39 +138,73 @@ for m in METHODS:
     print(f"  {m:32s}", np.round(bw[m], 1))
 
 # --------------------------------------------------------------------------
-fig, axes = plt.subplots(2, 2, figsize=(14, 9))
-cols = ["C3", "C1", "C2"]
+# Figure: one idea per panel
+# --------------------------------------------------------------------------
+STYLE = {METHODS[0]: dict(color="#c0392b", lw=1.6, ls="-",  label="MVDR, no loading"),
+         METHODS[1]: dict(color="#e67e22", lw=1.2, ls="--", label="MVDR, δ = 0.1"),
+         METHODS[2]: dict(color="#1e8449", lw=2.4, ls="-",  label="patent: 3 constraints ±2.5° + ε(f)")}
+cons_deg = [DOA_EST_DEG - BEAM_WIDTH_DEG/2, DOA_EST_DEG, DOA_EST_DEG + BEAM_WIDTH_DEG/2]
 
+fig, axes = plt.subplots(2, 2, figsize=(15, 10))
+fig.patch.set_facecolor("white")
+
+# (a) zoom on the beam: where the constraints sit and where the target is
 ax = axes[0, 0]
-for p, m, c in zip(pats, METHODS, cols):
-    ax.plot(thetas, p, color=c, lw=1.3, label=m)
-ax.axvspan(DOA_EST_DEG - BEAM_WIDTH_DEG/2, DOA_EST_DEG + BEAM_WIDTH_DEG/2, color="C2", alpha=0.12, label="pre-selected beam width")
-ax.axvline(TARGET_DEG, color="k", ls=":", lw=1); ax.axvline(INTERF_DEG, color="r", ls=":", lw=1)
-ax.text(TARGET_DEG - 12, -55, "true 20°", fontsize=8)
-ax.set_xlim(-90, 90); ax.set_ylim(-60, 5); ax.set_xlabel("θ [deg]"); ax.set_ylabel("|wᴴs(θ)| [dB]")
-ax.set_title(f"Beam patterns at {F_SHOW} Hz, steered to {DOA_EST_DEG:.0f}° (true target {TARGET_DEG:.0f}°)"); ax.grid(alpha=0.3); ax.legend(fontsize=8)
+for m, p in zip(METHODS, pats):
+    ax.plot(thetas, p, **STYLE[m])
+ax.axvspan(cons_deg[0], cons_deg[2], color="#1e8449", alpha=0.08)
+ax.plot(cons_deg, [0, 0, 0], "o", ms=9, mfc="white", mec="#1e8449", mew=2, zorder=5,
+        label="constraints: Cᴴw = [1,1,1]")
+ax.axvline(TARGET_DEG, color="k", ls=":", lw=1.2)
+ax.annotate("true target 20°", xy=(TARGET_DEG, -13), xytext=(8, -24), fontsize=10,
+            arrowprops=dict(arrowstyle="->", lw=1))
+ax.annotate("MVDR self-null\n−14 dB", xy=(TARGET_DEG, pats[0][np.argmin(np.abs(thetas - TARGET_DEG))]),
+            xytext=(24.5, -20), fontsize=10, color="#c0392b", arrowprops=dict(arrowstyle="->", color="#c0392b", lw=1))
+ax.annotate("patent: 0 dB across\nthe whole beam width", xy=(cons_deg[2], 0.3), xytext=(27.5, -8), fontsize=10,
+            color="#1e8449", arrowprops=dict(arrowstyle="->", color="#1e8449", lw=1))
+ax.set_xlim(5, 40); ax.set_ylim(-40, 10)
+ax.set_xlabel("θ [deg]"); ax.set_ylabel("gain |wᴴs(θ)| [dB]")
+ax.set_title(f"(a) Beam around the look direction, {F_SHOW} Hz — steered to {DOA_EST_DEG:.0f}°", loc="left", fontsize=12)
+ax.grid(alpha=0.3); ax.legend(loc="lower right", fontsize=9)
 
+# (b) full pattern, MVDR vs patent only
 ax = axes[0, 1]
-for m, c in zip(METHODS, cols):
-    ax.plot(errors, snr_err[m], color=c, lw=1.5, marker="o", ms=3, label=m)
-ax.axvspan(-BEAM_WIDTH_DEG/2, BEAM_WIDTH_DEG/2, color="C2", alpha=0.12)
-ax.set_xlabel("steering error [deg]"); ax.set_ylabel("output SNR [dB]")
-ax.set_title("Output SNR vs DOA error (shaded = patent beam width)"); ax.grid(alpha=0.3); ax.legend(fontsize=8)
+for m in (METHODS[0], METHODS[2]):
+    ax.plot(thetas, pats[METHODS.index(m)], **STYLE[m])
+ax.axvspan(cons_deg[0], cons_deg[2], color="#1e8449", alpha=0.12)
+ax.axvline(INTERF_DEG, color="k", ls=":", lw=1.2)
+ax.annotate("interferer −40° (+10 dB)\nnulled by both", xy=(INTERF_DEG, -45), xytext=(-30, -50), fontsize=10,
+            arrowprops=dict(arrowstyle="->", lw=1))
+ax.annotate("price: sidelobes next to\nthe flat top rise to +4 dB", xy=(30, 4), xytext=(45, -12), fontsize=10,
+            color="#1e8449", arrowprops=dict(arrowstyle="->", color="#1e8449", lw=1))
+ax.set_xlim(-90, 90); ax.set_ylim(-60, 8)
+ax.set_xlabel("θ [deg]"); ax.set_ylabel("gain [dB]")
+ax.set_title(f"(b) Full pattern, {F_SHOW} Hz", loc="left", fontsize=12)
+ax.grid(alpha=0.3); ax.legend(loc="lower right", fontsize=9)
 
+# (c) SNR vs DOA error
 ax = axes[1, 0]
-for m, c in zip(METHODS, cols):
-    ax.plot(FREQS, bw[m], color=c, lw=1.5, marker="s", ms=4, label=m)
-ax.set_xlabel("frequency [Hz]"); ax.set_ylabel(f"max |gain| deviation over ±{BEAM_WIDTH_DEG/2:.1f}° [dB]")
-ax.set_title("Gain ripple across the pre-selected beam width vs frequency\n(patent goal: uniform, frequency-independent)"); ax.grid(alpha=0.3); ax.legend(fontsize=8)
+ax.axvspan(-BEAM_WIDTH_DEG/2, BEAM_WIDTH_DEG/2, color="#1e8449", alpha=0.08)
+for m in METHODS:
+    ax.plot(errors, snr_err[m], marker="o", ms=3.5, **STYLE[m])
+ax.text(0, 12.3, "pre-selected beam width (5°)", ha="center", fontsize=9, color="#1e8449")
+ax.set_xlabel("DOA estimation error [deg]"); ax.set_ylabel("output SNR [dB]")
+ax.set_title(f"(c) Robustness to DOA error, {F_SHOW} Hz", loc="left", fontsize=12)
+ax.set_ylim(-1, 21); ax.grid(alpha=0.3); ax.legend(loc="upper right", fontsize=9)
 
+# (d) SNR vs frequency with 2° error
 ax = axes[1, 1]
-for m, c in zip(METHODS, cols):
-    ax.plot(FREQS, snr_f[m], color=c, lw=1.5, marker="s", ms=4, label=m)
+for m in METHODS:
+    ax.plot(FREQS, snr_f[m], marker="s", ms=5, **STYLE[m])
 ax.set_xlabel("frequency [Hz]"); ax.set_ylabel("output SNR [dB]")
-ax.set_title("Output SNR vs frequency with 2° DOA error"); ax.grid(alpha=0.3); ax.legend(fontsize=8)
+ax.set_title("(d) Same 2° DOA error, across frequency", loc="left", fontsize=12)
+ax.set_ylim(-1, 18); ax.grid(alpha=0.3); ax.legend(loc="upper right", fontsize=9)
+ax.text(2500, 12.4, "flat = 'standardized regardless of frequency'", fontsize=9, color="#1e8449", ha="center")
 
-fig.suptitle("US 2018/0176679 A1: LCMV with boundary steering vectors + frequency-scaled loading", y=0.995)
-fig.tight_layout()
+fig.suptitle("US 2018/0176679 A1 — hold unit gain across a pre-selected beam width so a DOA error cannot self-null the target\n"
+             f"{M} mics, {D_M*100:.0f} cm spacing · target 20° at 0 dB · DOA estimate 22° · interferer −40° at +10 dB",
+             fontsize=12, y=0.995)
+fig.tight_layout(rect=(0, 0, 1, 0.96))
 os.makedirs(PLOTS_DIR, exist_ok=True)
 out = os.path.join(PLOTS_DIR, "patent_beamwidth_lcmv.png")
 fig.savefig(out, dpi=130)
