@@ -65,6 +65,14 @@ w = steer(theta_look) / Nr                # enhancement: weights for one directi
 y = w.conj().T @ X                        # 1 x N beamformer output
 ```
 
+$$
+\mathbf{s}(\theta) = \big[1,\; e^{j2\pi d \sin\theta},\; \dots,\; e^{j2\pi (N_r-1) d \sin\theta}\big]^T,
+\qquad
+\mathbf{w}_{\text{conv}} = \frac{\mathbf{s}(\theta)}{N_r},
+\qquad
+P_{\text{conv}}(\theta) = \mathbf{s}^H(\theta)\,\mathbf{R}\,\mathbf{s}(\theta)
+$$
+
 `wᴴ = sᴴ/Nr` conjugates each element's phase lag so the look direction adds
 in phase; everything else partially cancels. The scan is that same
 operation tried at every angle — a spatial periodogram. Resolution is fixed
@@ -102,6 +110,15 @@ def power_mvdr(theta, X):                 # DOA scan, closed form = var(w_mvdr�
     s = steer(theta)
     return 1 / (s.conj().T @ Rinv @ s).squeeze()
 ```
+
+$$
+\mathbf{w}_{\text{MVDR}} = \arg\min_{\mathbf{w}} \mathbf{w}^H \mathbf{R}\, \mathbf{w}
+\;\;\text{s.t.}\;\; \mathbf{w}^H \mathbf{s}(\theta) = 1
+\;\;\Rightarrow\;\;
+\mathbf{w}_{\text{MVDR}} = \frac{\mathbf{R}^{-1}\mathbf{s}}{\mathbf{s}^H \mathbf{R}^{-1} \mathbf{s}},
+\qquad
+P_{\text{MVDR}}(\theta) = \frac{1}{\mathbf{s}^H \mathbf{R}^{-1} \mathbf{s}}
+$$
 
 Minimize output power `wᴴRw` subject to `wᴴs = 1`. `R⁻¹` de-emphasizes
 whatever is strong in the data that isn't at θ, so interferers get nulled
@@ -177,6 +194,18 @@ W_zf   = C @ np.linalg.inv(C.conj().T @ C)                       # pinv(C)ᴴ
 Y = W.conj().T @ X                                               # K x N, one row per source
 ```
 
+$$
+\mathbf{C} = [\mathbf{s}_1 \cdots \mathbf{s}_K],
+\qquad
+\mathbf{W}_{\text{bank}} = \Big[\tfrac{\mathbf{R}^{-1}\mathbf{s}_k}{\mathbf{s}_k^H \mathbf{R}^{-1} \mathbf{s}_k}\Big]_{k=1..K},
+\qquad
+\mathbf{W}_{\text{LCMV}} = \mathbf{R}^{-1}\mathbf{C}\,(\mathbf{C}^H \mathbf{R}^{-1} \mathbf{C})^{-1},
+\qquad
+\mathbf{W}_{\text{ZF}} = \mathbf{C}\,(\mathbf{C}^H \mathbf{C})^{-1},
+\qquad
+\mathbf{Y} = \mathbf{W}^H \mathbf{X}
+$$
+
 ![Extract three](plots/pysdr_extract_three.png)
 
 ```
@@ -201,6 +230,13 @@ f = np.array([1]*n_pass + [0]*n_null).reshape(-1, 1)                  # desired 
 w = Rinv @ C @ np.linalg.pinv(C.conj().T @ Rinv @ C) @ f              # Nr x 1
 ```
 
+$$
+\mathbf{w}_{\text{LCMV}} = \arg\min_{\mathbf{w}} \mathbf{w}^H \mathbf{R}\, \mathbf{w}
+\;\;\text{s.t.}\;\; \mathbf{C}^H \mathbf{w} = \mathbf{f}
+\;\;\Rightarrow\;\;
+\mathbf{w}_{\text{LCMV}} = \mathbf{R}^{-1}\mathbf{C}\,(\mathbf{C}^H \mathbf{R}^{-1} \mathbf{C})^{-1}\mathbf{f}
+$$
+
 Minimize `wᴴRw` subject to `Cᴴw = f`: K linear constraints (unit gain here,
 zero there) enforced exactly, and the remaining `Nr−K` degrees of freedom
 spent by `R⁻¹` on minimizing everything else. MVDR is the `K=1, f=1` case.
@@ -217,46 +253,7 @@ spent by `R⁻¹` on minimizing everything else. MVDR is the `K=1, f=1` case.
 MVDR is LCMV with one constraint; the three-source extractor is LCMV with
 three.
 
-## 7. LMS: known waveform, unknown direction
-
-`src/pysdr_lms.py` — the "LMS" section. 8 elements, SOI = repeated Gold-code
-pilot from 20°, two equal-power tone jammers from 60° and −50°, noise 0.5.
-LMS is given the pilot but **not** the DOA, and adapts one sample at a time.
-
-```python
-w = np.zeros((Nr, 1), dtype=complex)
-for i in range(N):
-    r_i = r[:, i].reshape(-1, 1)          # one snapshot, Nr x 1
-    y = (w.conj().T @ r_i).squeeze()      # current output
-    e = soi[i] - y                        # error against the known pilot
-    w += mu * np.conj(e) * r_i            # stochastic gradient step
-```
-
-Stochastic gradient descent on `E|soi − wᴴr|²`. No covariance, no matrix
-inverse, O(Nr) per sample; converges to the Wiener solution `R⁻¹p` with
-`p = E[r·soi*]`, which for a pilot from θ is proportional to `R⁻¹s(θ)` —
-the MVDR direction.
-
-![LMS](plots/pysdr_lms.png)
-
-```
-                 gain @20° (SOI)   @60° jammer   @−50° jammer   SNR (last 20k samples)
-element 0                                                          −4.0 dB
-LMS              0.925 (−0.7 dB)   −55.3 dB      −37.2 dB          12.3 dB
-MVDR (DOA=20°)   1.000 ( 0.0 dB)   −53.3 dB      −42.9 dB          12.0 dB
-```
-
-- LMS lands on the MVDR weights (normalized vectors agree to ~0.01); the
-  beam patterns coincide — main lobe on 20°, nulls on both jammers, none of
-  which LMS was told. The LMS fixed point is the Wiener solution `R⁻¹p`, and
-  with a pilot `p = E[r·soi*] ∝ s(20°)`.
-- ~40k samples to converge at `μ = 5e-6`; larger `μ` is faster but noisier
-  (stability bound ≈ `2/trace(R)`).
-- Acoustic analogue: NLMS with a reference signal is the adaptive stage of a
-  GSC and of echo cancellation — no pilot for speech, but a known reference
-  for loudspeaker playback or motor/ego-noise on a robot.
-
-## 8. MUSIC: subspace DOA
+## 7. MUSIC: subspace DOA
 
 `src/pysdr_music.py` — the "MUSIC" section, plus Root MUSIC. Same
 three-source scenario as Part B.
@@ -278,6 +275,14 @@ roots = np.roots(p[::-1]); roots = roots[np.abs(roots) <= 1]
 roots = roots[np.argsort(-np.abs(roots))][:K]
 doas = np.arcsin(np.angle(roots) / (2*np.pi*d))
 ```
+
+$$
+\mathbf{R} = \mathbf{U}\boldsymbol{\Lambda}\mathbf{U}^H
+= \underbrace{\mathbf{U}_s \boldsymbol{\Lambda}_s \mathbf{U}_s^H}_{K \text{ signal}}
++ \underbrace{\mathbf{V}\, \sigma^2 \mathbf{V}^H}_{N_r - K \text{ noise}},
+\qquad
+P_{\text{MUSIC}}(\theta) = \frac{1}{\mathbf{s}^H(\theta)\,\mathbf{V}\mathbf{V}^H\,\mathbf{s}(\theta)}
+$$
 
 `R` has `K` large eigenvalues (signal subspace) and `Nr−K` small ones equal
 to the noise power. A true steering vector lies in the signal subspace, so
@@ -304,6 +309,52 @@ Root MUSIC K=3         [-39.98, 20.00, 24.99]
   bin, and *uncorrelated* sources — reverberant copies are correlated and
   degrade the subspace split, which is why GCC-PHAT/SRP tends to win in rooms
   and MUSIC in RF.
+
+## 8. LMS: known waveform, unknown direction
+
+`src/pysdr_lms.py` — the "LMS" section. 8 elements, SOI = repeated Gold-code
+pilot from 20°, two equal-power tone jammers from 60° and −50°, noise 0.5.
+LMS is given the pilot but **not** the DOA, and adapts one sample at a time.
+
+```python
+w = np.zeros((Nr, 1), dtype=complex)
+for i in range(N):
+    r_i = r[:, i].reshape(-1, 1)          # one snapshot, Nr x 1
+    y = (w.conj().T @ r_i).squeeze()      # current output
+    e = soi[i] - y                        # error against the known pilot
+    w += mu * np.conj(e) * r_i            # stochastic gradient step
+```
+
+$$
+\mathbf{w}_{n+1} = \mathbf{w}_n + \mu\, \underbrace{\big(y_n - \mathbf{w}_n^H \mathbf{x}_n\big)^{*}}_{\text{error}}\, \mathbf{x}_n
+\;\;\xrightarrow{\;n\to\infty\;}\;\;
+\mathbf{w}_{\text{Wiener}} = \mathbf{R}^{-1}\mathbf{p},
+\quad \mathbf{p} = E[\mathbf{x}\, y^{*}]
+$$
+
+Stochastic gradient descent on `E|soi − wᴴr|²`. No covariance, no matrix
+inverse, O(Nr) per sample; converges to the Wiener solution `R⁻¹p` with
+`p = E[r·soi*]`, which for a pilot from θ is proportional to `R⁻¹s(θ)` —
+the MVDR direction.
+
+![LMS](plots/pysdr_lms.png)
+
+```
+                 gain @20° (SOI)   @60° jammer   @−50° jammer   SNR (last 20k samples)
+element 0                                                          −4.0 dB
+LMS              0.925 (−0.7 dB)   −55.3 dB      −37.2 dB          12.3 dB
+MVDR (DOA=20°)   1.000 ( 0.0 dB)   −53.3 dB      −42.9 dB          12.0 dB
+```
+
+- LMS lands on the MVDR weights (normalized vectors agree to ~0.01); the
+  beam patterns coincide — main lobe on 20°, nulls on both jammers, none of
+  which LMS was told. The LMS fixed point is the Wiener solution `R⁻¹p`, and
+  with a pilot `p = E[r·soi*] ∝ s(20°)`.
+- ~40k samples to converge at `μ = 5e-6`; larger `μ` is faster but noisier
+  (stability bound ≈ `2/trace(R)`).
+- Acoustic analogue: NLMS with a reference signal is the adaptive stage of a
+  GSC and of echo cancellation — no pilot for speech, but a known reference
+  for loudspeaker playback or motor/ego-noise on a robot.
 
 ## Takeaways for the microphone array
 
