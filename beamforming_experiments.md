@@ -24,6 +24,7 @@ weight vector `w`, applied as `y = wᴴ x`:
 | MVDR / Capon | `w = R⁻¹s / (sᴴR⁻¹s)` | unit gain at θ, minimum output power → implicit nulls on whatever else is in `R` |
 | LCMV | `w = R⁻¹C (CᴴR⁻¹C)⁻¹ f` | MVDR with several constraints: `C = [s₁ … s_K]`, gains `f` |
 | Zero-forcing | `W = C (CᴴC)⁻¹` | least-squares unmixing, no covariance needed |
+| LMS | `w += μ·conj(e)·r`, `e = soi − wᴴr` | adaptive; knows the SOI *waveform* (pilot), not the DOA; converges to the Wiener/MVDR solution |
 
 Spectral analysis and spatial filtering are the same math with time ↔ space
 and frequency ↔ `d·sinθ`: the conventional scan is a spatial periodogram,
@@ -160,6 +161,32 @@ noise, loses to the adaptive methods once noise is directional or reverberant.
 MVDR is LCMV with one constraint; the three-source extractor is LCMV with
 three.
 
+## 7. LMS: known waveform, unknown direction
+
+`src/pysdr_lms.py` — the "LMS" section. 8 elements, SOI = repeated Gold-code
+pilot from 20°, two equal-power tone jammers from 60° and −50°, noise 0.5.
+LMS is given the pilot but **not** the DOA, and adapts one sample at a time:
+`y = wᴴr`, `e = soi − y`, `w += μ·conj(e)·r`.
+
+![LMS](plots/pysdr_lms.png)
+
+```
+                 gain @20° (SOI)   @60° jammer   @−50° jammer   SNR (last 20k samples)
+element 0                                                          −4.0 dB
+LMS              0.925 (−0.7 dB)   −55.3 dB      −37.2 dB          12.3 dB
+MVDR (DOA=20°)   1.000 ( 0.0 dB)   −53.3 dB      −42.9 dB          12.0 dB
+```
+
+- LMS lands on the MVDR weights (normalized vectors agree to ~0.01); the
+  beam patterns coincide — main lobe on 20°, nulls on both jammers, none of
+  which LMS was told. The LMS fixed point is the Wiener solution `R⁻¹p`, and
+  with a pilot `p = E[r·soi*] ∝ s(20°)`.
+- ~40k samples to converge at `μ = 5e-6`; larger `μ` is faster but noisier
+  (stability bound ≈ `2/trace(R)`).
+- Acoustic analogue: NLMS with a reference signal is the adaptive stage of a
+  GSC and of echo cancellation — no pilot for speech, but a known reference
+  for loudspeaker playback or motor/ego-noise on a robot.
+
 ## Takeaways for the microphone array
 
 1. The DOA estimate is only half the job; the same `R⁻¹` that produced the
@@ -174,3 +201,6 @@ three.
    some angle pairs become indistinguishable (the 2 kHz case above).
 5. Acoustic signals are broadband: do everything per STFT bin with
    `s_k(f) = exp(2jπ f τ_k)`, then ISTFT.
+6. Two ways to get the weights: know the *direction* (MVDR/LCMV, needs
+   `R⁻¹`) or know the *waveform* (LMS, needs a reference). They converge to
+   the same answer; pick by which side information you actually have.
